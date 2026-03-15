@@ -4,7 +4,7 @@
 
 import { COMPANY, DEPARTMENTS, QA_AI, RESPONSE_TEMPLATES } from './data.js';
 import { store, generateId } from './state.js';
-import { ExecutionEngine } from './execution-engine.js';
+import { ExecutionEngine, TASK_CATALOG } from './execution-engine.js';
 
 // ---- Utility helpers ----
 function pickRandom(arr) {
@@ -57,7 +57,8 @@ function detectExecutionTaskType(text) {
     return 'general';
 }
 
-function buildExecutionOutputPath(taskType, title, formatHint = 'txt') {
+function buildExecutionOutputPath(taskType, title) {
+    const formatHint = TASK_CATALOG[taskType]?.outputFormat || 'txt';
     return `/artifacts/${taskType}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${formatHint}`;
 }
 
@@ -193,7 +194,7 @@ export class ExecutiveAssistant {
 ${JSON.stringify(internalMessage, null, 2)}
 \`\`\`
 
-Artifact stored at: \`${output.outputPath}\``
+Artifact posted to output repo: \`${output.outputPath}\``
                     }
                 });
             }
