@@ -28,6 +28,7 @@ Then open:
 - `npm run start` — alias for `npm run dev`.
 - `npm run build` — production build output to `dist/`.
 - `npm run preview` — preview the built app.
+- `npm run check` — syntax checks via `scripts/check.js` + production build attempt (auto-skips when `vite` is unavailable).
 - `npm run check` — syntax checks + production build verification (build step auto-skips if `vite` is unavailable in restricted environments).
 - `npm run start` — starts the local static server.
 - `npm run dev` — same as start for now.
