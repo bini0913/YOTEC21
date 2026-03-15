@@ -1,0 +1,11 @@
+{
+  "name": "yotec21",
+  "version": "1.0.0",
+  "private": true,
+  "description": "YOTEC AI Company System",
+  "scripts": {
+    "start": "node YOTEC/server.js",
+    "dev": "node YOTEC/server.js",
+    "check": "node --check YOTEC/server.js && node --check YOTEC/js/app.js && node --check YOTEC/js/state.js && node --check YOTEC/js/ai-engine.js && node --check YOTEC/js/execution-engine.js && node --check YOTEC/js/ui/chat.js"
+  }
+}

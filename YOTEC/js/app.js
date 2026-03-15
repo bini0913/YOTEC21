@@ -4,7 +4,7 @@
 
 import { store } from './state.js';
 import { startAutonomousTick } from './ai-engine.js';
-import { renderDashboard, refreshDashboard } from './ui/dashboard.js';
+import { renderDashboard } from './ui/dashboard.js';
 import { renderChat } from './ui/chat.js';
 import { renderProjects } from './ui/projects.js';
 import { renderTeam } from './ui/team.js';
@@ -132,6 +132,7 @@ function init() {
 
     // Init clock
     initClock();
+    updateNotifBadge();
 
     // Render initial dashboard
     const dashPanel = document.getElementById('panel-dashboard');
