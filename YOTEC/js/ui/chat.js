@@ -6,9 +6,19 @@ import { store, generateId } from '../state.js';
 import { ExecutiveAssistant } from '../ai-engine.js';
 
 const ea = new ExecutiveAssistant();
+let unsubscribeChat = null;
+
+function escapeHTML(text = '') {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function renderMarkdown(text) {
-  return text
+  return escapeHTML(text)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/\n/g, '<br>');
@@ -28,13 +38,14 @@ function bubbleHTML(msg) {
   const name = isCEO ? 'Biniam (CEO)' : msg.fromName || 'ARIA';
 
   let extraContent = '';
-  if (msg.type === 'ea-message' && msg.content.includes('EXECUTION COMPLETE')) {
+  if (msg.type === 'ea-message' && /execution complete/i.test(msg.content)) {
     const artifactMatch = msg.content.match(/Artifact posted to output repo: `(.+?)`/);
     const artifactPath = artifactMatch ? artifactMatch[1] : null;
 
     extraContent += `
             <div class="bubble-actions">
-                <button class="btn-icon tts-btn" data-message="${msg.content}">🔊</button>
+                <button class="btn-icon tts-btn" data-message="${escapeHTML(msg.content)}">🔊</button>
+                <button class="btn-icon" onclick="window._yotec?.switchPanel('outputs')">📦 Open Repo</button>
                 ${artifactPath ? `<a href="${artifactPath}" target="_blank" class="btn-icon artifact-link">📦 Artifact</a>` : ''}
             </div>
         `;
@@ -122,6 +133,7 @@ export function renderChat(container) {
   const messagesEl = container.querySelector('#chat-messages-scroll');
   const inputEl = container.querySelector('#ceo-input');
   const sendBtn = container.querySelector('#send-btn');
+  const clearBtn = container.querySelector('#chat-clear-btn');
   const typingEl = container.querySelector('#typing-indicator');
   const broadcastEl = container.querySelector('#broadcast-log');
 
@@ -188,8 +200,14 @@ export function renderChat(container) {
     chip.addEventListener('click', () => { inputEl.value = chip.dataset.msg; sendMessage(); });
   });
 
+  clearBtn?.addEventListener('click', () => {
+    store.dispatch({ type: 'RESET' });
+    renderChat(container);
+  });
+
   // Subscribe to new manager-ack messages
-  store.subscribe(state => {
+  if (typeof unsubscribeChat === 'function') unsubscribeChat();
+  unsubscribeChat = store.subscribe(state => {
     const lastMsg = state.chatHistory[state.chatHistory.length - 1];
     if (lastMsg?.type === 'manager-ack') {
       const existing = messagesEl.querySelector(`[data-msgid="${lastMsg.id}"]`);
