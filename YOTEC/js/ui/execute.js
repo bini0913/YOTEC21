@@ -4,7 +4,7 @@
 
 import { store } from '../state.js';
 import { DEPARTMENTS } from '../data.js';
-import { ExecutionEngine } from '../execution-engine.js';
+import { ExecutionEngine, TASK_CATALOG } from '../execution-engine.js';
 
 export function renderExecute(container) {
     const state = store.state;
@@ -38,13 +38,37 @@ export function renderExecute(container) {
           </div>
           
           <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px;font-weight:600;">TASK TYPE</label>
+            <select id="exec-task-type" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:10px 14px;color:var(--text-primary);font-size:0.85rem;outline:none;">
+              <option value="web_dev">Web Development</option>
+              <option value="ui_design">UI / Design</option>
+              <option value="learning_content">Learning Content</option>
+              <option value="content_strategy">Content Strategy</option>
+              <option value="analytics_report">Analytics Report</option>
+              <option value="automation_ops">Ops / Automation</option>
+              <option value="general">General</option>
+            </select>
+          </div>
+
+          <div>
             <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px;font-weight:600;">OUTPUT TITLE</label>
             <input id="exec-title" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:10px 14px;color:var(--text-primary);font-size:0.85rem;outline:none;" placeholder="e.g. Q3 Analytics Report">
           </div>
-          
+
           <div>
             <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px;font-weight:600;">INSTRUCTIONS / PROMPT</label>
             <textarea id="exec-prompt" rows="4" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:10px 14px;color:var(--text-primary);font-size:0.85rem;outline:none;resize:vertical;" placeholder="Describe exactly what the AI should generate..."></textarea>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px;font-weight:600;">EXECUTE FUNCTION</label>
+              <input id="exec-function" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:10px 14px;color:var(--text-primary);font-size:0.8rem;outline:none;" placeholder="generate_react_component">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px;font-weight:600;">OUTPUT PATH</label>
+              <input id="exec-output-path" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:10px 14px;color:var(--text-primary);font-size:0.8rem;outline:none;" placeholder="/artifacts/...">
+            </div>
           </div>
         </div>
         
@@ -66,6 +90,19 @@ export function renderExecute(container) {
 
     const btnRun = container.querySelector('#btn-run');
     const logDiv = container.querySelector('#exec-log');
+    const taskTypeEl = container.querySelector('#exec-task-type');
+    const executeFunctionEl = container.querySelector('#exec-function');
+    const outputPathEl = container.querySelector('#exec-output-path');
+
+    function syncExecutionProfile() {
+        const type = taskTypeEl.value;
+        const profile = TASK_CATALOG[type] || TASK_CATALOG.general;
+        executeFunctionEl.value = profile.executeFunction;
+        outputPathEl.value = `/artifacts/${type}-${Date.now()}.${profile.outputFormat}`;
+    }
+
+    syncExecutionProfile();
+    taskTypeEl.addEventListener('change', syncExecutionProfile);
 
     function logItem(msg, color = '#8892b0') {
         const time = new Date().toLocaleTimeString([], { hour12: false });
@@ -77,8 +114,11 @@ export function renderExecute(container) {
         const workerId = container.querySelector('#exec-worker').value;
         const title = container.querySelector('#exec-title').value.trim();
         const prompt = container.querySelector('#exec-prompt').value.trim();
+        const taskType = taskTypeEl.value;
+        const executeFunction = executeFunctionEl.value.trim();
+        const outputPath = outputPathEl.value.trim();
 
-        if (!workerId || !title || !prompt) {
+        if (!workerId || !title || !prompt || !taskType) {
             logItem('ERROR: Missing parameters.', 'var(--accent-red)');
             return;
         }
@@ -91,11 +131,13 @@ export function renderExecute(container) {
         logItem(`> INIT EXECUTION: ${worker.name} (${worker.role})`, 'var(--accent-cyan)');
         logItem(`Target output: "${title}"`);
         logItem(`Compiling context matrices...`);
+        logItem(`Execution function: ${executeFunction}`);
+        logItem(`Output path: ${outputPath}`);
 
         setTimeout(() => logItem(`Analyzing prompt parameters...`), 600);
         setTimeout(() => logItem(`Allocating processing threads... Generating...`, 'var(--accent-gold)'), 1500);
 
-        const output = await ExecutionEngine.runTask(workerId, title, prompt);
+        const output = await ExecutionEngine.runTask(workerId, title, prompt, { taskType, executeFunction, outputPath });
 
         if (output) {
             logItem(`SUCCESS: Artifact generated! Format: .${output.format}`, 'var(--accent-green)');
