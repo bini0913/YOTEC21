@@ -170,6 +170,16 @@ function reducer(state, action) {
                 status: action.payload.status || 'pending',
                 energy: action.payload.energy ?? 50,
                 dateStart: action.payload.dateStart || new Date().toISOString().split('T')[0],
+        case 'ADD_PROJECT': {
+            const project = {
+                id: action.payload.id || generateId('proj'),
+                ...action.payload,
+                subtasks: generateSubtasks(action.payload),
+                workerAssignments: [],
+                progress: 0,
+                status: 'pending',
+                energy: 50,
+                dateStart: new Date().toISOString().split('T')[0],
                 dateEnd: action.payload.dateEnd || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
             };
             return { ...state, projects: [...state.projects, project] };

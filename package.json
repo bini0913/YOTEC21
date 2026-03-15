@@ -12,5 +12,8 @@
   },
   "devDependencies": {
     "vite": "^5.4.10"
+    "start": "node YOTEC/server.js",
+    "dev": "node YOTEC/server.js",
+    "check": "node --check YOTEC/server.js && node --check YOTEC/js/app.js && node --check YOTEC/js/state.js && node --check YOTEC/js/ai-engine.js && node --check YOTEC/js/execution-engine.js && node --check YOTEC/js/ui/chat.js"
   }
 }

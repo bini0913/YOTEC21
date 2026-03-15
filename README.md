@@ -12,6 +12,10 @@ YOTEC is a browser-based AI company simulator with autonomous departments, task 
 ```bash
 npm install
 npm run dev
+## Quick start
+
+```bash
+npm run start
 ```
 
 Then open:
@@ -25,6 +29,9 @@ Then open:
 - `npm run build` — production build output to `dist/`.
 - `npm run preview` — preview the built app.
 - `npm run check` — syntax checks + production build verification (build step auto-skips if `vite` is unavailable in restricted environments).
+- `npm run start` — starts the local static server.
+- `npm run dev` — same as start for now.
+- `npm run check` — lightweight syntax checks for core JS files.
 
 ## Notes
 
