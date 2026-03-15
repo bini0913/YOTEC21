@@ -162,9 +162,9 @@ function reducer(state, action) {
 
         case 'ADD_PROJECT': {
             const project = {
-                id: generateId('proj'),
+                id: action.payload.id || generateId('proj'),
                 ...action.payload,
-                subtasks: [],
+                subtasks: generateSubtasks(action.payload),
                 workerAssignments: [],
                 progress: 0,
                 status: 'pending',

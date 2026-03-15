@@ -15,10 +15,6 @@ function fillTemplate(template, vars) {
     return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] !== undefined ? vars[key] : `{${key}}`);
 }
 
-function delay(ms) {
-    return new Promise(res => setTimeout(res, ms));
-}
-
 // Maps keywords in CEO messages to departments
 const KEYWORD_DEPT_MAP = {
     develop: 'dev', code: 'dev', backend: 'dev', frontend: 'dev', api: 'dev', app: 'dev',
