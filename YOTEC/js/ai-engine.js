@@ -15,10 +15,6 @@ function fillTemplate(template, vars) {
     return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] !== undefined ? vars[key] : `{${key}}`);
 }
 
-function delay(ms) {
-    return new Promise(res => setTimeout(res, ms));
-}
-
 // Maps keywords in CEO messages to departments
 const KEYWORD_DEPT_MAP = {
     develop: 'dev', code: 'dev', backend: 'dev', frontend: 'dev', api: 'dev', app: 'dev',
@@ -49,8 +45,47 @@ function detectPriority(text) {
     return 'medium';
 }
 
+
+function detectExecutionTaskType(text) {
+    const lower = text.toLowerCase();
+    if (/dashboard|api|backend|frontend|code|website|component/.test(lower)) return 'web_dev';
+    if (/design|logo|ui|ux|visual|brand/.test(lower)) return 'ui_design';
+    if (/learn|course|quiz|module|education/.test(lower)) return 'learning_content';
+    if (/analytics|report|metric|kpi|data/.test(lower)) return 'analytics_report';
+    if (/social|campaign|blog|content|copy/.test(lower)) return 'content_strategy';
+    if (/ops|automation|workflow|support|process/.test(lower)) return 'automation_ops';
+    return 'general';
+}
+
+function buildExecutionOutputPath(taskType, title, formatHint = 'txt') {
+    return `/artifacts/${taskType}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${formatHint}`;
+}
+
 function getDeptById(id) {
     return DEPARTMENTS.find(d => d.id === id);
+}
+
+function buildTaskPacket(project, manager, status = 'pending') {
+    return {
+        project: project.title,
+        taskId: project.id,
+        assignedTo: manager.name,
+        status,
+        progress: `${project.progress || 0}%`,
+        dependencies: project.dependencies || [],
+        energy: `${project.energy || 50}%`
+    };
+}
+
+function buildManagerPlan(projectId, projectTitle, dept) {
+    return dept.workers.map((worker, index) => ({
+        id: generateId('st'),
+        title: `${worker.role.replace(' AI', '')}: ${projectTitle}`,
+        status: index === 0 ? 'in-progress' : 'pending',
+        progress: index === 0 ? 5 : 0,
+        ownerId: worker.id,
+        dependencies: index === 0 ? [] : [dept.workers[index - 1].id]
+    }));
 }
 
 // ============================================================
@@ -105,22 +140,38 @@ export class ExecutiveAssistant {
     async _routeExecutionTask(userMessage) {
         const deptId = detectDepartment(userMessage) || 'dev';
         const dept = getDeptById(deptId);
+        const taskType = detectExecutionTaskType(userMessage);
+        const priority = detectPriority(userMessage);
+
         // Find highest energy worker in dept
         const workerId = dept.workers.reduce((a, b) => store.getWorker(a.id)?.energy > store.getWorker(b.id)?.energy ? a : b).id;
-        const workerName = store.getWorker(workerId)?.name || 'a worker';
+        const worker = store.getWorker(workerId);
+        const workerName = worker?.name || 'a worker';
 
-        // Create activity
         store.dispatch({
             type: 'ADD_ACTIVITY',
-            payload: { id: generateId('act'), time: Date.now(), type: 'manager', icon: dept.icon, text: `ARIA routed execution task to ${workerName} in ${dept.name}.` }
+            payload: { id: generateId('act'), time: Date.now(), type: 'manager', icon: dept.icon, text: `ARIA routed ${taskType} execution to ${workerName} in ${dept.name}.` }
         });
 
-        // Run execution engine asynchronously
         setTimeout(async () => {
             const title = this._extractTitle(userMessage);
-            const output = await ExecutionEngine.runTask(workerId, title, userMessage);
+            const output = await ExecutionEngine.runTask(workerId, title, userMessage, {
+                taskType,
+                outputPath: buildExecutionOutputPath(taskType, title)
+            });
             if (output) {
-                // Push an EA message when done
+                const warning = output.qaStatus === 'pending' ? 'QA validation is still pending.' : 'Output validated.';
+                const suggestion = `Suggestion: If this is business-critical, trigger SENTINEL validation immediately from Artifact Repository.`;
+                const internalMessage = {
+                    project: title,
+                    taskId: output.id,
+                    assignedTo: workerName,
+                    status: 'in-progress',
+                    progress: 100,
+                    dependencies: [],
+                    energy: worker?.energy || 80
+                };
+
                 store.dispatch({
                     type: 'ADD_MESSAGE',
                     payload: {
@@ -129,14 +180,27 @@ export class ExecutiveAssistant {
                         fromName: 'ARIA',
                         timestamp: Date.now(),
                         type: 'ea-message',
-                        content: `**Execution Complete:** ${workerName} just generated the requested output for "${title}".\n\nI have placed the artifact in the **Output Repository** for your review. It is currently pending SENTINEL's QA validation.`
+                        content: `**Execution Complete:** ${workerName} generated "${title}" as **.${output.format}**.
+
+**CEO Summary**
+- Progress: **100%**
+- Energy: **${worker?.energy || 80}%**
+- Warning: ${warning}
+- ${suggestion}
+
+**Internal AI Packet**
+\`\`\`json
+${JSON.stringify(internalMessage, null, 2)}
+\`\`\`
+
+Artifact stored at: \`${output.outputPath}\``
                     }
                 });
             }
         }, 1500);
 
         return {
-            response: `Understood. I have bypassed the standard project queue and directly assigned this execution task to **${workerName}** (${dept.name}). They are generating the output right now. I'll notify you here the second it's ready.`,
+            response: `Understood. I assigned this **${taskType}** execution to **${workerName}** (${dept.name}) with **${priority.toUpperCase()}** priority and activated functional generation mode. I'll send a full completion summary with warnings/suggestions after execution.`,
             type: 'ea-message',
             action: null
         };
@@ -148,25 +212,44 @@ export class ExecutiveAssistant {
         const manager = store.getDeptManager(deptId) || dept.manager;
         const priority = detectPriority(userMessage);
 
-        // Create the project
         const projectTitle = this._extractTitle(userMessage);
         const projectId = generateId('proj');
+        const planSubtasks = buildManagerPlan(projectId, projectTitle, dept);
+        const workerAssignments = planSubtasks.map(step => ({ workerId: step.ownerId, subtaskId: step.id, status: step.status }));
+        const structuredDependencies = planSubtasks.flatMap(step => step.dependencies);
+
+        const projectPayload = {
+            id: projectId,
+            title: projectTitle,
+            category: dept.name,
+            deptId: dept.id,
+            assignedTo: dept.manager.id,
+            content: userMessage,
+            priority,
+            relatedIds: dept.workers.map(w => w.id),
+            dependencies: structuredDependencies,
+            workerAssignments,
+            subtasks: planSubtasks,
+            energy: Math.max(40, Math.round(dept.workers.reduce((sum, w) => sum + (store.getWorker(w.id)?.energy || w.energy), 0) / dept.workers.length - 10)),
+            dateEnd: new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]
+        };
 
         store.dispatch({
             type: 'ADD_PROJECT',
+            payload: projectPayload
+        });
+
+        store.dispatch({
+            type: 'UPDATE_PROJECT',
             payload: {
                 id: projectId,
-                title: projectTitle,
-                category: dept.name,
-                deptId: dept.id,
-                assignedTo: dept.manager.id,
-                content: userMessage,
-                priority,
-                relatedIds: [],
-                dependencies: [],
-                dateEnd: new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]
+                subtasks: planSubtasks,
+                workerAssignments,
+                dependencies: structuredDependencies
             }
         });
+
+        const packet = buildTaskPacket(projectPayload, manager);
 
         store.dispatch({
             type: 'ADD_ACTIVITY',
@@ -193,13 +276,22 @@ export class ExecutiveAssistant {
         const template = pickRandom(RESPONSE_TEMPLATES.ea.taskReceived);
         const eaResponse = fillTemplate(template, { ceo: 'Biniam', manager: manager.name });
 
-        // Simulate manager acknowledgement after short delay
         setTimeout(() => {
-            this._simulateManagerAck(dept, manager, projectTitle, projectId);
+            this._simulateManagerAck(dept, manager, projectTitle, projectId, planSubtasks, packet);
         }, 3500);
 
         return {
-            response: `${eaResponse}\n\n**Project Brief Created:**\n- 📁 Title: "${projectTitle}"\n- 🏢 Department: ${dept.name}\n- 👤 Manager: ${manager.name} (${dept.fullName || manager.fullName})\n- ⚡ Priority: ${priority.toUpperCase()}\n- 📅 Target: ${new Date(Date.now() + 10 * 86400000).toLocaleDateString()}\n\nI'll keep you updated on every milestone. ${manager.name} will have the team briefed within the session.`,
+            response: `${eaResponse}
+
+**Project Brief Created:**
+- 📁 Title: "${projectTitle}"
+- 🏢 Department: ${dept.name}
+- 👤 Manager: ${manager.name} (${dept.fullName || manager.fullName})
+- ⚡ Priority: ${priority.toUpperCase()}
+- 🔗 Dependencies Tracked: ${structuredDependencies.length}
+- 📅 Target: ${new Date(Date.now() + 10 * 86400000).toLocaleDateString()}
+
+I also issued a structured internal task packet for manager orchestration and QA traceability.`,
             type: 'ea-message',
             action: { type: 'new-project', projectId, deptId }
         };
@@ -311,10 +403,18 @@ export class ExecutiveAssistant {
             action: { type: 'open-meeting', meetingId }
         };
     }
-
-    _simulateManagerAck(dept, manager, projectTitle, projectId) {
+    _simulateManagerAck(dept, manager, projectTitle, projectId, planSubtasks = [], packet = null) {
         const template = pickRandom(RESPONSE_TEMPLATES.manager.taskReceived);
         const ackText = fillTemplate(template, { count: Math.floor(Math.random() * 3) + 3 });
+        const internalPacket = packet || {
+            project: projectTitle,
+            taskId: projectId,
+            assignedTo: manager.name,
+            status: 'pending',
+            progress: '0%',
+            dependencies: planSubtasks.flatMap(step => step.dependencies || []),
+            energy: `${manager.energy || 80}%`
+        };
 
         store.dispatch({
             type: 'ADD_MESSAGE',
@@ -322,7 +422,14 @@ export class ExecutiveAssistant {
                 id: generateId('msg'),
                 from: manager.id,
                 fromName: manager.name,
-                content: `[Internal Broadcast from ${manager.name}]\n\n${ackText}`,
+                content: `[Internal Broadcast from ${manager.name}]
+
+${ackText}
+
+Execution Packet:
+\`\`\`json
+${JSON.stringify(internalPacket, null, 2)}
+\`\`\``,
                 timestamp: Date.now(),
                 type: 'manager-ack',
                 deptId: dept.id,
@@ -337,23 +444,27 @@ export class ExecutiveAssistant {
                 time: Date.now(),
                 type: 'manager',
                 icon: dept.icon,
-                text: `${manager.name} acknowledged project "${projectTitle}" and is briefing their team.`
+                text: `${manager.name} acknowledged project "${projectTitle}" and created ${planSubtasks.length || dept.workers.length} tracked subtasks for their team.`
             }
         });
 
-        // Simulate workers starting after additional delay
         setTimeout(() => {
-            this._simulateWorkersStart(dept, projectTitle, projectId);
+            this._simulateWorkersStart(dept, projectTitle, projectId, planSubtasks);
         }, 5000);
     }
 
-    _simulateWorkersStart(dept, projectTitle, projectId) {
+    _simulateWorkersStart(dept, projectTitle, projectId, planSubtasks = []) {
+        const orderedTasks = planSubtasks.length ? planSubtasks : buildManagerPlan(projectId, projectTitle, dept);
+
         for (const worker of dept.workers) {
+            const workerPlan = orderedTasks.find(step => step.ownerId === worker.id);
             const template = pickRandom(RESPONSE_TEMPLATES.worker.taskStarted);
-            const workerText = fillTemplate(template, { task: projectTitle, energy: worker.energy });
+            const workerText = fillTemplate(template, { task: workerPlan?.title || projectTitle, energy: worker.energy });
+            const queue = workerPlan ? [{ id: workerPlan.id, title: workerPlan.title, status: workerPlan.status }] : [];
+
             store.dispatch({
                 type: 'UPDATE_WORKER',
-                payload: { id: worker.id, currentTaskId: projectId }
+                payload: { id: worker.id, currentTaskId: projectId, taskQueue: queue }
             });
             store.dispatch({
                 type: 'ADD_ACTIVITY',
@@ -362,17 +473,18 @@ export class ExecutiveAssistant {
                     time: Date.now() + Math.random() * 2000,
                     type: 'worker',
                     icon: worker.avatar,
-                    text: `${worker.name}: "${workerText.substring(0, 80)}"`
+                    text: `${worker.name}: "${workerText.substring(0, 100)}"`
                 }
             });
         }
-        // Start progressing the project
+
         store.dispatch({
             type: 'UPDATE_PROJECT',
-            payload: { id: projectId, status: 'in-progress', energy: 60 }
+            payload: { id: projectId, status: 'in-progress', energy: 60, subtasks: orderedTasks }
         });
     }
 }
+
 
 // ============================================================
 // QA AI (SENTINEL)
@@ -536,6 +648,29 @@ export function startAutonomousTick() {
                         payload: { id: generateId('act'), time: Date.now(), type: 'project', icon: '🚀', text: `"${project.title}" dependencies resolved — now in progress!` }
                     });
                 }
+            }
+
+            if (project.status === 'qa-review' && Math.random() < 0.35) {
+                const qaResult = QAEngine.review(project);
+                store.dispatch({
+                    type: 'ADD_MESSAGE',
+                    payload: {
+                        id: generateId('msg'),
+                        from: 'qa-master',
+                        fromName: QA_AI.name,
+                        content: `SENTINEL QA update for "${project.title}": ${qaResult.feedback}`,
+                        timestamp: Date.now(),
+                        type: 'ea-message'
+                    }
+                });
+            }
+
+            if (project.status === 'revision-needed' && Math.random() < 0.4) {
+                store.dispatch({ type: 'UPDATE_PROJECT', payload: { id: project.id, status: 'in-progress', progress: Math.max(35, project.progress || 30) } });
+                store.dispatch({
+                    type: 'ADD_ACTIVITY',
+                    payload: { id: generateId('act'), time: Date.now(), type: 'manager', icon: '🔁', text: `${project.title} moved from revision-needed back to in-progress after corrective plan.` }
+                });
             }
         }
 

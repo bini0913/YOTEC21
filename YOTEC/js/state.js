@@ -162,14 +162,14 @@ function reducer(state, action) {
 
         case 'ADD_PROJECT': {
             const project = {
-                id: generateId('proj'),
+                id: action.payload.id || generateId('proj'),
                 ...action.payload,
-                subtasks: [],
-                workerAssignments: [],
-                progress: 0,
-                status: 'pending',
-                energy: 50,
-                dateStart: new Date().toISOString().split('T')[0],
+                subtasks: action.payload.subtasks?.length ? action.payload.subtasks : generateSubtasks(action.payload),
+                workerAssignments: action.payload.workerAssignments || [],
+                progress: action.payload.progress ?? 0,
+                status: action.payload.status || 'pending',
+                energy: action.payload.energy ?? 50,
+                dateStart: action.payload.dateStart || new Date().toISOString().split('T')[0],
                 dateEnd: action.payload.dateEnd || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
             };
             return { ...state, projects: [...state.projects, project] };
