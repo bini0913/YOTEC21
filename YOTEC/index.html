@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOTEC — AI Company System</title>
+  <meta name="description" content="YOTEC: A futuristic AI-driven company simulation with autonomous human-like AI employees, managed by CEO Biniam.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell" id="app-shell">
+
+  <!-- ======= TOP BAR ======= -->
+  <header class="topbar" role="banner">
+    <div class="topbar-logo">
+      <span>🏢</span>
+      <div>
+        <div>YOTEC</div>
+        <div class="topbar-tagline">AI Company System</div>
+      </div>
+    </div>
+
+    <div class="topbar-title" aria-label="System status">
+      <span class="ea-online-dot"></span>
+      <span style="font-size:0.8rem;color:var(--text-muted);">All 40 AI employees active · 10 departments operational</span>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="topbar-time" id="topbar-clock" aria-label="Current time">00:00:00</div>
+      <button class="notif-bell" id="notif-btn" aria-label="Notifications" onclick="window._yotec?.switchPanel('dashboard')">
+        🔔
+        <span class="notif-badge" id="notif-badge">5</span>
+      </button>
+      <div class="ceo-chip" aria-label="CEO Biniam">
+        <div class="ceo-avatar">👑</div>
+        Biniam — CEO
+      </div>
+    </div>
+  </header>
+
+  <!-- ======= SIDEBAR ======= -->
+  <nav class="sidebar" aria-label="Main navigation">
+    <div class="sidebar-section-label">Navigation</div>
+    <!-- Nav items are injected by app.js -->
+    <div id="main-nav"></div>
+
+    <div class="sidebar-spacer"></div>
+
+    <!-- EA Status widget -->
+    <div class="sidebar-footer">
+      <div class="ea-status-card">
+        <div class="ea-name"><span class="ea-online-dot"></span>ARIA — EA Intelligence</div>
+        <div class="ea-desc">Energy 98% · Ready to assist</div>
+      </div>
+
+      <!-- Department quick-access -->
+      <div class="sidebar-section-label" style="margin-top:16px;">Departments</div>
+      <div id="sidebar-depts" style="display:flex;flex-direction:column;gap:1px;"></div>
+    </div>
+  </nav>
+
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="main-content" id="main-content" role="main" aria-label="Main content area">
+    <!-- Panels are injected by app.js -->
+  </main>
+
+</div><!-- /app-shell -->
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+<!-- Splash loading screen -->
+<div id="splash" style="position:fixed;inset:0;background:var(--bg-void);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity 0.6s ease;">
+  <div style="font-size:4rem;animation:pulse-dot 1.5s infinite;">🏢</div>
+  <div style="font-family:var(--font-display);font-size:2.5rem;font-weight:800;background:linear-gradient(135deg,var(--accent-cyan),var(--accent-purple),var(--accent-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">YOTEC</div>
+  <div style="color:var(--text-muted);font-size:0.9rem;letter-spacing:0.15em;text-transform:uppercase;">Initializing AI Company System…</div>
+  <div style="width:220px;height:3px;background:var(--bg-elevated);border-radius:var(--radius-full);overflow:hidden;">
+    <div id="splash-progress" style="height:100%;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-purple));border-radius:var(--radius-full);width:0%;transition:width 0.1s linear;"></div>
+  </div>
+  <div style="color:var(--text-muted);font-size:0.75rem;" id="splash-status">Loading departments…</div>
+</div>
+
+<!-- Sidebar department quick-access (populated by script) -->
+<script type="module">
+  // Animated splash progress
+  const splashProgress = document.getElementById('splash-progress');
+  const splashStatus   = document.getElementById('splash-status');
+  const status_steps   = ['Loading departments…', 'Activating AI workers…', 'Initializing QA…', 'Starting autonomous agents…', 'ARIA online — ready!'];
+  let prog = 0;
+  const progInterval = setInterval(() => {
+    prog = Math.min(prog + Math.random() * 22 + 5, 100);
+    if (splashProgress) splashProgress.style.width = prog + '%';
+    const step = Math.floor(prog / 20);
+    if (splashStatus && status_steps[step]) splashStatus.textContent = status_steps[step];
+    if (prog >= 100) {
+      clearInterval(progInterval);
+      setTimeout(() => {
+        const splash = document.getElementById('splash');
+        if (splash) { splash.style.opacity = '0'; setTimeout(() => splash.remove(), 650); }
+      }, 350);
+    }
+  }, 80);
+</script>
+
+<script type="module" src="js/app.js"></script>
+
+<!-- Sidebar dept quick-links (runs after app init) -->
+<script type="module">
+  import { DEPARTMENTS } from './js/data.js';
+  const el = document.getElementById('sidebar-depts');
+  if (el) {
+    el.innerHTML = DEPARTMENTS.map(d => `
+      <div class="nav-item" style="padding:6px 10px;font-size:0.75rem;" onclick="window._yotec?.switchPanel('team')" tabindex="0">
+        <span>${d.icon}</span><span>${d.name}</span>
+      </div>
+    `).join('');
+  }
+</script>
+
+</body>
+</html>
